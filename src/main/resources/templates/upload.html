@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Excel File Upload</title>
+</head>
+<body>
+<h1>엑셀 파일 업로드</h1>
+
+<form action="/upload" method="post" enctype="multipart/form-data">
+    <label for="file">엑셀 파일 선택:</label>
+    <input type="file" name="file" id="file" accept=".xls,.xlsx" required>
+    <button type="submit">업로드</button>
+</form>
+
+<p th:text="${message}"></p>
+
+<h2>업로드된 데이터:</h2>
+<table border="1">
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>Row Data</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="row, rowStat : ${data}">
+        <td th:text="${rowStat.index + 1}"></td>
+        <td th:text="${row}"></td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

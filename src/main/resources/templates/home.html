@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>홈 화면</title>
+</head>
+<body>
+    <h1>환영합니다!</h1>
+    <p th:text="'로그인한 사용자: ' + ${username}"></p>
+    <a href="/logout">로그아웃</a>
+</body>
+</html>
