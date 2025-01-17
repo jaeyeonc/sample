@@ -4,10 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>홈 화면</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+        .pagination { margin-top: 10px; }
+        .pagination button { padding: 5px 10px; margin: 2px; }
+        button { cursor: pointer; }
+    </style>
 </head>
 <body>
     <h1>환영합니다!</h1>
     <p th:text="'로그인한 사용자: ' + ${username}"></p>
     <a href="/logout">로그아웃</a>
+    <br><br>
+    <table id="dataTable">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Age</th>
+            <th>City</th>
+            <th>Action</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="pagination">
+        <button id="prevPage" onclick="changePage(-1)">Prev</button>
+        <button id="nextPage" onclick="changePage(1)">Next</button>
+        <span>Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+    </div>
 </body>
+
+<script>
+    // 데이터 예시 (전체 데이터)
+    const data = [
+        { name: 'John', age: 28, city: 'New York' },
+        { name: 'Jane', age: 22, city: 'London' },
+        { name: 'Mike', age: 32, city: 'San Francisco' },
+        { name: 'Sara', age: 24, city: 'Paris' },
+        { name: 'David', age: 29, city: 'Berlin' },
+        { name: 'Anna', age: 21, city: 'Rome' },
+        { name: 'Paul', age: 35, city: 'Madrid' },
+        { name: 'Sophia', age: 27, city: 'Sydney' },
+        { name: 'James', age: 30, city: 'Tokyo' },
+        { name: 'Laura', age: 33, city: 'Los Angeles' }
+    ];
+
+    let currentPage = 1;
+    const rowsPerPage = 3;
+    let sortedData = [...data];  // 복사본을 만들어서 정렬을 위한 배열로 사용
+
+    // 테이블에 데이터 렌더링
+    function renderTable() {
+        const tbody = document.querySelector('#dataTable tbody');
+        tbody.innerHTML = ''; // 테이블 내용 초기화
+        const startIdx = (currentPage - 1) * rowsPerPage;
+        const paginatedData = sortedData.slice(startIdx, startIdx + rowsPerPage);
+
+        paginatedData.forEach((item, idx) => {
+            const row = document.createElement('tr');
+            Object.entries(item).forEach(([key, value]) => {
+                const td = document.createElement('td');
+                td.textContent = value;
+                row.appendChild(td);
+            });
+
+            // Action buttons (Up / Down)
+            const actionTd = document.createElement('td');
+            const buttonGroup = document.createElement('div');
+            buttonGroup.classList.add('button-group');
+
+            const upButton = document.createElement('button');
+            upButton.textContent = 'Up';
+            upButton.onclick = () => moveRowUp(startIdx + idx);  // 행을 위로 이동
+            buttonGroup.appendChild(upButton);
+
+            const downButton = document.createElement('button');
+            downButton.textContent = 'Down';
+            downButton.onclick = () => moveRowDown(startIdx + idx);  // 행을 아래로 이동
+            buttonGroup.appendChild(downButton);
+
+            actionTd.appendChild(buttonGroup);
+            row.appendChild(actionTd);
+
+            tbody.appendChild(row);
+        });
+
+        updatePagination();
+    }
+
+    // 페이지 업데이트
+    function updatePagination() {
+        const totalPages = Math.ceil(sortedData.length / rowsPerPage);
+        document.getElementById('totalPages').textContent = totalPages;
+        document.getElementById('currentPage').textContent = currentPage;
+
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage === totalPages;
+    }
+
+    // 페이지 변경
+    function changePage(direction) {
+        const totalPages = Math.ceil(sortedData.length / rowsPerPage);
+        currentPage += direction;
+
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        renderTable();
+    }
+
+    // 행을 위로 이동
+    function moveRowUp(index) {
+        if (index <= 0) return;  // 첫 번째 행은 위로 이동 불가
+        [sortedData[index], sortedData[index - 1]] = [sortedData[index - 1], sortedData[index]];  // 배열에서 두 항목을 교환
+        renderTable();  // 데이터 갱신
+    }
+
+    // 행을 아래로 이동
+    function moveRowDown(index) {
+        if (index >= sortedData.length - 1) return;  // 마지막 행은 아래로 이동 불가
+        [sortedData[index], sortedData[index + 1]] = [sortedData[index + 1], sortedData[index]];  // 배열에서 두 항목을 교환
+        renderTable();  // 데이터 갱신
+    }
+
+    // 초기 데이터 렌더링
+    renderTable();
+</script>
 </html>

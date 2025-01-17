@@ -40,6 +40,7 @@ public class SecurityConfig {
     }
 
     public void configureAuthentication(HttpSecurity authManagerBuilder) throws Exception {
+        System.out.println("configureAuthentication -------");
         authManagerBuilder.userDetailsService(customUserDetailsService);
     }
 }
