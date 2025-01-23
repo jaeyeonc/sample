@@ -34,7 +34,7 @@ public class SecurityConfig {
     }
 
     private void configureAuthorization(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
-        auth.requestMatchers("/upload").hasAnyAuthority(ROLE_ADMIN, ROLE_USER)
+        auth.requestMatchers("/upload22").hasAnyAuthority(ROLE_ADMIN, ROLE_USER)
                 .requestMatchers(PUBLIC_PATHS).permitAll()
                 .anyRequest().authenticated();
     }

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>엑셀 파일 다운로드</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <!-- jQuery CDN -->
+</head>
+<body>
+<h1>엑셀 파일 다운로드</h1>
+<p>엑셀 파일을 다운로드하려면 아래 버튼을 클릭하세요.</p>
+
+<!-- 다운로드 버튼 -->
+<button id="downloadBtn">엑셀 파일 다운로드</button>
+
+<script>
+  // 다운로드 버튼 클릭 시
+  $('#downloadBtn').on('click', function() {
+    // jQuery의 AJAX 요청
+    $.ajax({
+      url: '/download-file',  // 파일 다운로드 URL
+      method: 'GET',
+      xhrFields: {
+        responseType: 'blob'  // 응답을 Blob 형식으로 처리
+      },
+      success: function(blob) {
+        // Blob 데이터로 받은 파일을 다운로드 링크로 처리
+        const link = document.createElement('a');
+        const url = window.URL.createObjectURL(blob);  // Blob URL 생성
+        link.href = url;
+        link.download = 'example.xlsx';  // 다운로드할 파일 이름 설정
+        document.body.appendChild(link);
+        link.click();  // 클릭 이벤트로 다운로드 시작
+        document.body.removeChild(link);  // 다운로드 후 링크 제거
+        window.URL.revokeObjectURL(url);  // Blob URL 메모리 해제
+      },
+      error: function(xhr, status, error) {
+        console.error('파일 다운로드 실패:', error);
+        alert('파일 다운로드에 실패했습니다.');
+      }
+    });
+  });
+</script>
+</body>
+</html>
