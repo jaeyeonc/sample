@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ajax File Upload</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .pagination {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .pagination button {
+            margin: 0 2px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        .pagination button:first-of-type,
+        .pagination button:last-of-type {
+            font-weight: bold;
+            color: blue;
+        }
+
+        .rows-per-page-container {
+            display: flex;
+            align-items: center;
+            margin-left: auto; /* 오른쪽 정렬 */
+            margin-bottom: 10px;
+        }
+
+        .rows-per-page-container label {
+            margin-right: 5px;
+        }
+
+        th {
+            position: relative;
+        }
+
+        .sort-indicator {
+            margin-left: 5px;
+            font-size: 0.8em;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            width: 80%;
+            position: relative;
+        }
+
+        .close-btn {
+            float: right;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close-btn:hover {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+<h1>Ajax File Upload with JS Render</h1>
+
+<!-- Form -->
+<form id="upload-form">
+    <input type="file" id="file" name="file" accept=".xlsx, .xls">
+    <button type="submit">Upload</button>
+</form>
+
+<!-- Modal -->
+<div id="result-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" id="close-btn">&times;</span>
+
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Upload Results</h3>
+                <!-- Rows per page selector -->
+                <div class="rows-per-page-container">
+                    <label for="rows-per-page-select">Rows per page:</label>
+                    <select id="rows-per-page-select">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+            </div>
+            <table id="result-table">
+                <thead>
+                <tr>
+                    <th data-field="firstName">First Name</th>
+                    <th data-field="lastName">Last Name</th>
+                    <th data-field="ptnOrTelephonyNumber">PTN/Telephony Number</th>
+                    <th data-field="idNumber">ID Number</th>
+                    <th data-field="position">Position</th>
+                    <th data-field="shortDiallingCode">Short Dialling Code</th>
+                    <th data-field="operationalCommandUnit">Operational Command Unit</th>
+                    <th data-field="callSign">Call Sign</th>
+                    <th data-field="organisation">Organisation</th>
+                    <th>Error Reasons</th>
+                    <th data-field="row">row</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- Rendered rows will appear here -->
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        <div class="pagination" id="pagination-controls">
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+            <button id="modal-close-button" style="margin-right: 10px;">닫기</button>
+            <button id="modal-proceed-button" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer;">진행</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        const modal = $('#result-modal');
+        const resultTableBody = $('#result-table tbody');
+        const fileInputSelector = '#file';
+        const uploadFormSelector = '#upload-form';
+        const paginationControls = $('#pagination-controls');
+        const rowsPerPageSelect = $('#rows-per-page-select');
+        let uploadResponse = []; // 서버 응답 데이터 저장
+        let currentPage = 1; // 현재 페이지
+        let rowsPerPage = parseInt(rowsPerPageSelect.val(), 10); // 페이지 당 행 수
+        let sortOrder = {}; // 정렬 상태 저장 { column: asc/desc }
+
+        setupModalCloseHandlers(modal);
+
+        $(uploadFormSelector).on('submit', handleFileUpload);
+
+        // 닫기 버튼: 모달을 닫는 동작 추가
+        $('#modal-close-button').on('click', function () {
+            modal.hide(); // 모달 닫기
+        });
+
+        // 진행 버튼: errors 없는 데이터만 전송
+        $('#modal-proceed-button').on('click', function () {
+            // errors가 없는 데이터만 필터링
+            const filteredData = uploadResponse.filter(item => item.validationResult.errors.length === 0);
+
+            if (filteredData.length === 0) {
+                alert("에러가 없는 데이터가 없습니다. 진행할 수 없습니다.");
+                return;
+            }
+
+            console.log(filteredData);
+
+            // Ajax로 데이터 전달
+            $.ajax({
+                url: '/api/process', // 데이터를 처리할 백엔드 엔드포인트
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(filteredData), // 필터된 데이터를 JSON으로 전송
+                success: function (response) {
+                    alert("에러가 없는 데이터가 성공적으로 처리되었습니다.");
+                    modal.hide(); // 작업 완료 후 모달 닫기
+                },
+                error: function () {
+                    alert("데이터 처리 중 문제가 발생했습니다.");
+                }
+            });
+        });
+
+        /**
+         * 파일 업로드 처리
+         * @param {Event} event
+         */
+        function handleFileUpload(event) {
+            event.preventDefault();
+
+            const fileInput = $(fileInputSelector)[0].files[0];
+            if (!fileInput) {
+                alert("Please select a file!");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput);
+
+            // Ajax 호출
+            $.ajax({
+                url: '/api/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    uploadResponse = response; // response 데이터를 전역 변수에 저장
+                    currentPage = 1; // 페이지 초기화
+                    renderGrid(response); // 데이터 렌더링
+                    modal.show(); // 모달 표시
+                },
+                error: handleUploadError
+            });
+        }
+
+        /**
+         * 업로드 실패 핸들러
+         */
+        function handleUploadError() {
+            alert("Error occurred while uploading the file!");
+        }
+
+        /**
+         * 모달 닫기 처리기 등록
+         * @param {jQuery} modal
+         */
+        function setupModalCloseHandlers(modal) {
+            $('#close-btn').on('click', () => modal.hide());
+
+            $(window).on('click', (event) => {
+                if ($(event.target).is(modal)) {
+                    modal.hide();
+                }
+            });
+        }
+
+        /**
+         * 그리드 렌더링 함수: 데이터를 HTML로 출력
+         * @param {Array} response - 서버에서 받은 데이터
+         */
+        function renderGrid(response) {
+            resultTableBody.empty(); // 기존 데이터를 지운다
+            paginationControls.empty(); // 기존 페이지네이션 버튼을 지운다
+
+            const total = response.length;
+            const totalPages = Math.ceil(total / rowsPerPage);
+
+            // 현재 페이지 범위 벗어날 경우 처리
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages; // 최대 페이지로 설정
+            }
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, total);
+
+            const currentData = response.slice(startIndex, endIndex);
+
+            currentData.forEach(data => {
+                resultTableBody.append(renderRow(data)); // 데이터 추가
+            });
+
+            renderPagination(total, rowsPerPage); // 페이지네이션 버튼 갱신
+        }
+
+        /**
+         * 행 렌더링 함수: 하나의 행 데이터를 Template 형태로 반환
+         * @param {Object} data - UserDataValidationWrapper from backend
+         * @returns {string} - HTML string representing a new row with all fields included
+         */
+        function renderRow(data) {
+            const { userData, validationResult } = data;
+
+            const fields = [
+                'firstName', 'lastName', 'ptnOrTelephonyNumber', 'idNumber',
+                'position', 'shortDiallingCode', 'operationalCommandUnit',
+                'callSign', 'organisation',
+            ];
+
+            // 필드 데이터 생성
+            const fieldCells = fields.map(field => `<td>${userData[field] || ''}</td>`).join('');
+
+            // Validation 결과 추가
+            return `
+            <tr>
+                ${fieldCells}
+                <td>${validationResult.isValid ? 'No Errors' : validationResult.errors
+                .map(msg => `<span class="error">${msg}</span>`).join('<br>')}
+                </td>
+                <td>${userData.row || ''}</td>
+            </tr>`;
+        }
+
+        $(rowsPerPageSelect).on('change', function () {
+            rowsPerPage = parseInt($(this).val(), 10);
+            renderGrid(uploadResponse); // 노출 단위 재설정
+        });
+
+        // 테이블 헤더 클릭 시 정렬 및 화살표 추가
+        $('#result-table thead').on('click', 'th[data-field]', function () {
+            const field = $(this).data('field');
+            sortOrder[field] = sortOrder[field] === 'asc' ? 'desc' : 'asc';
+
+            // 기존 업로드 응답 데이터를 정렬
+            uploadResponse.sort((a, b) => {
+                let valA = field === "row" ? parseInt(a.userData[field]) || 0 : (a.userData[field] || '');
+                let valB = field === "row" ? parseInt(b.userData[field]) || 0 : (b.userData[field] || '');
+                if (sortOrder[field] === 'asc') {
+                    return valA > valB ? 1 : -1;
+                } else {
+                    return valA < valB ? 1 : -1;
+                }
+            });
+
+            // 화살표 업데이트
+            updateSortIndicators(field);
+
+            // 그리드 다시 렌더링
+            renderGrid(uploadResponse);
+        });
+
+        function renderPagination(totalRows, rowsPerPage) {
+            paginationControls.empty(); // 기존 버튼 초기화
+
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            // 처음 페이지 이동 버튼 추가
+            const firstPageButton = $('<button>« First</button>');
+            firstPageButton.on('click', function () {
+                currentPage = 1; // 첫 페이지로 이동
+                renderGrid(uploadResponse);
+            });
+            paginationControls.append(firstPageButton);
+
+            // 각 페이지 번호 버튼 생성
+            for (let i = 1; i <= totalPages; i++) {
+                const button = $(`<button>${i}</button>`);
+
+                button.on('click', function () {
+                    currentPage = i; // 클릭한 페이지로 이동
+                    renderGrid(uploadResponse);
+                });
+
+                if (i === currentPage) {
+                    button.css('font-weight', 'bold'); // 현재 페이지 강조
+                }
+
+                paginationControls.append(button);
+            }
+
+            // 마지막 페이지 이동 버튼 추가
+            const lastPageButton = $('<button>Last »</button>');
+            lastPageButton.on('click', function () {
+                currentPage = totalPages; // 마지막 페이지로 이동
+                renderGrid(uploadResponse);
+            });
+            paginationControls.append(lastPageButton);
+        }
+
+        /**
+         * 정렬 화살표 업데이트
+         * @param {string} field - 정렬 필드
+         */
+        function updateSortIndicators(field) {
+            // 모든 정렬 화살표 초기화
+            $('#result-table thead th .sort-indicator').remove();
+
+            // 현재 정렬 중인 필드에 화살표 추가
+            const currentTh = $(`#result-table thead th[data-field=${field}]`);
+            const sortArrow = sortOrder[field] === 'asc' ? '▲' : '▼';
+
+            // 화살표 추가
+            currentTh.append(`<span class="sort-indicator">${sortArrow}</span>`);
+        }
+
+    });
+</script>
+</body>
+</html>

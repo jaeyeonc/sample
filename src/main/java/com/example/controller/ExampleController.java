@@ -19,6 +19,7 @@ import java.util.Locale;
 public class ExampleController {
     private static final String INDEX_VIEW = "index";
     private static final String UPLOAD_VIEW = "upload";
+    private static final String API_UPLOAD_VIEW = "upload_result";
     private static final String EXCEL_MIME_XLS = "application/vnd.ms-excel";
     private static final String EXCEL_MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     private static final String CSV_MIME = "text/csv";
@@ -34,6 +35,11 @@ public class ExampleController {
     @GetMapping("/upload")
     public String uploadPage() {
         return UPLOAD_VIEW;
+    }
+
+    @GetMapping("/api/upload")
+    public String apiUploadPage() {
+        return API_UPLOAD_VIEW;
     }
 
     @PostMapping("/upload")
