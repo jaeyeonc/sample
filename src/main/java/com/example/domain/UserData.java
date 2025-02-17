@@ -5,6 +5,7 @@ public class UserData {
     private String lastName;
     private String ptnOrTelephonyNumber;
     private String idNumber;
+    private String email;
     private String position;
     private String shortDiallingCode;
     private String operationalCommandUnit;
@@ -24,6 +25,9 @@ public class UserData {
     }
     public String getIdNumber() {
         return idNumber;
+    }
+    public String getEmail() {
+        return email;
     }
     public String getPosition() {
         return position;
@@ -55,6 +59,9 @@ public class UserData {
     }
     public void setIdNumber(String idNumber) {
         this.idNumber = idNumber;
+    }
+    public void setEmail(String email) {
+        this.email = email;
     }
     public void setPosition(String position) {
         this.position = position;

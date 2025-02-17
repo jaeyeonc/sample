@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Ajax File Upload</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/js/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -96,7 +97,7 @@
     </style>
 </head>
 <body>
-<h1>Ajax File Upload with JS Render</h1>
+<h1>Ajax File Upload</h1>
 
 <!-- Form -->
 <form id="upload-form">
@@ -121,6 +122,8 @@
                         <option value="30">30</option>
                     </select>
                 </div>
+                <!-- 엑셀 다운로드 버튼 추가 -->
+                <button id="excel-download-button" style="margin-left: 15px; padding: 5px 10px; cursor: pointer;">Download Excel</button>
             </div>
             <table id="result-table">
                 <thead>
@@ -129,12 +132,14 @@
                     <th data-field="lastName">Last Name</th>
                     <th data-field="ptnOrTelephonyNumber">PTN/Telephony Number</th>
                     <th data-field="idNumber">ID Number</th>
+                    <th data-field="email">EMAIL</th>
                     <th data-field="position">Position</th>
                     <th data-field="shortDiallingCode">Short Dialling Code</th>
                     <th data-field="operationalCommandUnit">Operational Command Unit</th>
                     <th data-field="callSign">Call Sign</th>
                     <th data-field="organisation">Organisation</th>
-                    <th>Error Reasons</th>
+                    <th data-field="result">Result</th>
+                    <th data-field="errorReasons">Error Reasons</th>
                     <th data-field="row">row</th>
                 </tr>
                 </thead>
@@ -157,10 +162,10 @@
     $(document).ready(function () {
         const modal = $('#result-modal');
         const resultTableBody = $('#result-table tbody');
-        const fileInputSelector = '#file';
-        const uploadFormSelector = '#upload-form';
         const paginationControls = $('#pagination-controls');
         const rowsPerPageSelect = $('#rows-per-page-select');
+        const uploadFormSelector = '#upload-form';
+        const fileInputSelector = '#file';
         let uploadResponse = []; // 서버 응답 데이터 저장
         let currentPage = 1; // 현재 페이지
         let rowsPerPage = parseInt(rowsPerPageSelect.val(), 10); // 페이지 당 행 수
@@ -168,17 +173,21 @@
 
         setupModalCloseHandlers(modal);
 
-        $(uploadFormSelector).on('submit', handleFileUpload);
-
         // 닫기 버튼: 모달을 닫는 동작 추가
         $('#modal-close-button').on('click', function () {
             modal.hide(); // 모달 닫기
         });
 
+        $('#excel-download-button').on('click', function () {
+            downloadExcel(uploadResponse);
+        });
+
+        $(uploadFormSelector).on('submit', handleFileUpload);
+
         // 진행 버튼: errors 없는 데이터만 전송
         $('#modal-proceed-button').on('click', function () {
             // errors가 없는 데이터만 필터링
-            const filteredData = uploadResponse.filter(item => item.validationResult.errors.length === 0);
+            const filteredData = uploadResponse.filter(item => item.validationResult.valid === true);
 
             if (filteredData.length === 0) {
                 alert("에러가 없는 데이터가 없습니다. 진행할 수 없습니다.");
@@ -207,7 +216,7 @@
          * 파일 업로드 처리
          * @param {Event} event
          */
-        function handleFileUpload(event) {
+        function handleFileUpload (event) {
             event.preventDefault();
 
             const fileInput = $(fileInputSelector)[0].files[0];
@@ -227,6 +236,12 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
+                    //file실패 케이스 처리
+                    if(response[0].userData == null){
+                        alert(response[0].validationResult.errors);
+                        return;
+                    }
+
                     uploadResponse = response; // response 데이터를 전역 변수에 저장
                     currentPage = 1; // 페이지 초기화
                     renderGrid(response); // 데이터 렌더링
@@ -234,7 +249,43 @@
                 },
                 error: handleUploadError
             });
-        }
+        };
+
+        $(rowsPerPageSelect).on('change', function () {
+            rowsPerPage = parseInt($(this).val(), 10);
+            renderGrid(uploadResponse); // 노출 단위 재설정
+        });
+
+        // 테이블 헤더 클릭 시 정렬 및 화살표 추가
+        $('#result-table thead').on('click', 'th[data-field]', function () {
+            const field = $(this).data('field');
+            sortOrder[field] = sortOrder[field] === 'asc' ? 'desc' : 'asc';
+
+            // 기존 업로드 응답 데이터를 정렬
+            uploadResponse.sort((a, b) => {
+                let valA = field === "row" ? parseInt(a.userData[field]) || 0 : (a.userData[field] || '');
+                let valB = field === "row" ? parseInt(b.userData[field]) || 0 : (b.userData[field] || '');
+                if (field === "result") {
+                    valA = a.validationResult.valid ? 'Success' : 'Error';
+                    valB = b.validationResult.valid ? 'Success' : 'Error';
+                }
+                if (field === "errorReasons") {
+                    valA = a.validationResult.errors || '';
+                    valB = b.validationResult.errors || '';
+                }
+                if (sortOrder[field] === 'asc') {
+                    return valA > valB ? 1 : -1;
+                } else {
+                    return valA < valB ? 1 : -1;
+                }
+            });
+
+            // 화살표 업데이트
+            updateSortIndicators(field);
+
+            // 그리드 다시 렌더링
+            renderGrid(uploadResponse);
+        });
 
         /**
          * 업로드 실패 핸들러
@@ -295,7 +346,7 @@
 
             const fields = [
                 'firstName', 'lastName', 'ptnOrTelephonyNumber', 'idNumber',
-                'position', 'shortDiallingCode', 'operationalCommandUnit',
+                'email', 'position', 'shortDiallingCode', 'operationalCommandUnit',
                 'callSign', 'organisation',
             ];
 
@@ -306,56 +357,47 @@
             return `
             <tr>
                 ${fieldCells}
-                <td>${validationResult.isValid ? 'No Errors' : validationResult.errors
+                <td>${validationResult.valid ? 'Success' : 'Error'}</td>
+                <td>${validationResult.valid ? '' : validationResult.errors
                 .map(msg => `<span class="error">${msg}</span>`).join('<br>')}
                 </td>
                 <td>${userData.row || ''}</td>
             </tr>`;
         }
 
-        $(rowsPerPageSelect).on('change', function () {
-            rowsPerPage = parseInt($(this).val(), 10);
-            renderGrid(uploadResponse); // 노출 단위 재설정
-        });
-
-        // 테이블 헤더 클릭 시 정렬 및 화살표 추가
-        $('#result-table thead').on('click', 'th[data-field]', function () {
-            const field = $(this).data('field');
-            sortOrder[field] = sortOrder[field] === 'asc' ? 'desc' : 'asc';
-
-            // 기존 업로드 응답 데이터를 정렬
-            uploadResponse.sort((a, b) => {
-                let valA = field === "row" ? parseInt(a.userData[field]) || 0 : (a.userData[field] || '');
-                let valB = field === "row" ? parseInt(b.userData[field]) || 0 : (b.userData[field] || '');
-                if (sortOrder[field] === 'asc') {
-                    return valA > valB ? 1 : -1;
-                } else {
-                    return valA < valB ? 1 : -1;
-                }
-            });
-
-            // 화살표 업데이트
-            updateSortIndicators(field);
-
-            // 그리드 다시 렌더링
-            renderGrid(uploadResponse);
-        });
-
         function renderPagination(totalRows, rowsPerPage) {
             paginationControls.empty(); // 기존 버튼 초기화
 
             const totalPages = Math.ceil(totalRows / rowsPerPage);
 
-            // 처음 페이지 이동 버튼 추가
-            const firstPageButton = $('<button>« First</button>');
+            // 현재 페이지를 기준으로 5개씩 묶어서 표시
+            const maxVisibleButtons = 5;
+            const currentButtonGroup = Math.floor((currentPage - 1) / maxVisibleButtons);
+            const startPage = currentButtonGroup * maxVisibleButtons + 1;
+            const endPage = Math.min(startPage + maxVisibleButtons - 1, totalPages);
+
+            // 처음 페이지로 이동 버튼 추가
+            const firstPageButton = $('<button>«</button>'); // << 버튼
             firstPageButton.on('click', function () {
-                currentPage = 1; // 첫 페이지로 이동
+                currentPage = 1;
                 renderGrid(uploadResponse);
             });
             paginationControls.append(firstPageButton);
 
-            // 각 페이지 번호 버튼 생성
-            for (let i = 1; i <= totalPages; i++) {
+            // 이전 그룹 페이지로 이동 버튼 추가
+            const prevGroupButton = $('<button><</button>'); // < 버튼
+            if (currentButtonGroup > 0) {
+                prevGroupButton.on('click', function () {
+                    currentPage = startPage - maxVisibleButtons; // 이전 그룹의 첫 번째 페이지
+                    renderGrid(uploadResponse);
+                });
+            } else {
+                prevGroupButton.prop('disabled', true); // 첫 그룹이면 비활성화
+            }
+            paginationControls.append(prevGroupButton);
+
+            // 현재 그룹의 페이지 번호 버튼 생성
+            for (let i = startPage; i <= endPage; i++) {
                 const button = $(`<button>${i}</button>`);
 
                 button.on('click', function () {
@@ -364,16 +406,28 @@
                 });
 
                 if (i === currentPage) {
-                    button.css('font-weight', 'bold'); // 현재 페이지 강조
+                    button.css({ 'font-weight': 'bold', 'text-decoration': 'underline' }); // 현재 페이지 강조
                 }
 
                 paginationControls.append(button);
             }
 
-            // 마지막 페이지 이동 버튼 추가
-            const lastPageButton = $('<button>Last »</button>');
+            // 다음 그룹 페이지로 이동 버튼 추가
+            const nextGroupButton = $('<button>></button>'); // > 버튼
+            if (endPage < totalPages) {
+                nextGroupButton.on('click', function () {
+                    currentPage = endPage + 1; // 다음 그룹의 첫 번째 페이지
+                    renderGrid(uploadResponse);
+                });
+            } else {
+                nextGroupButton.prop('disabled', true); // 마지막 그룹이면 비활성화
+            }
+            paginationControls.append(nextGroupButton);
+
+            // 마지막 페이지로 이동 버튼 추가
+            const lastPageButton = $('<button>»</button>'); // >> 버튼
             lastPageButton.on('click', function () {
-                currentPage = totalPages; // 마지막 페이지로 이동
+                currentPage = totalPages;
                 renderGrid(uploadResponse);
             });
             paginationControls.append(lastPageButton);
@@ -393,6 +447,56 @@
 
             // 화살표 추가
             currentTh.append(`<span class="sort-indicator">${sortArrow}</span>`);
+        }
+
+        /**
+         * uploadResponse 데이터를 바탕으로 엑셀 파일 생성 후 다운로드
+         * @param {Array} data - 업로드된 데이터 (uploadResponse)
+         */
+        function downloadExcel(data) {
+            if (!data || data.length === 0) {
+                alert("No data available for download.");
+                return;
+            }
+
+            // 엑셀 데이터 시작
+            const worksheetData = [
+                [
+                    "First Name", "Last Name", "PTN/Telephony Number", "ID Number",
+                    "email", "Position", "Short Dialling Code", "Operational Command Unit",
+                    "Call Sign", "Organisation", "Result", "Error Reasons", "Row"
+                ],
+            ];
+
+            data.forEach(item => {
+                const { userData, validationResult } = item;
+
+                worksheetData.push([
+                    userData.firstName || "",
+                    userData.lastName || "",
+                    userData.ptnOrTelephonyNumber || "",
+                    userData.idNumber || "",
+                    userData.email || "",
+                    userData.position || "",
+                    userData.shortDiallingCode || "",
+                    userData.operationalCommandUnit || "",
+                    userData.callSign || "",
+                    userData.organisation || "",
+                    validationResult.valid ? "Success" : "Error",
+                    validationResult.valid ? "" : validationResult.errors,
+                    userData.row || ""
+                ]);
+            });
+
+            // SheetJS: 워크시트 생성
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+            // 시트 생성
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Upload Results");
+
+            // 엑셀 파일 다운로드
+            XLSX.writeFile(workbook, "upload_results.xlsx");
         }
 
     });

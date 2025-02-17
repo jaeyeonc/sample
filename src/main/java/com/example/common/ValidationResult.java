@@ -10,17 +10,11 @@ public class ValidationResult {
     public void addError(ValidationError errorType, String fieldName) {
         valid = false; // 한 번이라도 에러가 발생하면 유효성 검증 실패로 설정
         switch (errorType) {
-            case REQUIRED_FIELD:
-                errors.add(fieldName + " is required.");
+            case REQUIRED_FIELD, MAX_LENGTH_EXCEEDED, INVALID_FORMAT, UNSUPPORTED_CHARACTERS, DUPLICATE_ENTRY:
+                errors.add(errorType.getMessage() + " " + fieldName);
                 break;
-            case MAX_LENGTH_EXCEEDED:
-                errors.add(fieldName + " exceeds the maximum allowed length.");
-                break;
-            case INVALID_FORMAT:
-                errors.add(fieldName + " has an invalid format.");
-                break;
-            case DUPLICATE_ENTRY: // 중복 항목 에러 처리 추가
-                errors.add("Duplicate entry found for " + fieldName + ".");
+            default :
+                errors.add(errorType.getMessage());
                 break;
         }
     }

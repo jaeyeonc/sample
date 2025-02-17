@@ -4,12 +4,11 @@ import com.example.common.UserDataValidationWrapper;
 import com.example.common.ValidationError;
 import com.example.common.ValidationResult;
 import com.example.domain.UserData;
+import com.example.service.UserDataService;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -23,6 +22,12 @@ import java.util.function.Consumer;
 @RequestMapping("/api")
 public class FileUploadApiController {
 
+    private final UserDataService userDataService;
+
+    public FileUploadApiController(UserDataService userDataService) {
+        this.userDataService = userDataService;
+    }
+
     @PostMapping("/upload")
     public ResponseEntity<List<UserDataValidationWrapper>> handleUpload(@RequestParam("file") MultipartFile file) {
         List<UserDataValidationWrapper> userList = new ArrayList<>();
@@ -30,29 +35,35 @@ public class FileUploadApiController {
              Workbook workbook = WorkbookFactory.create(inputStream)) {
 
             Sheet sheet = workbook.getSheetAt(0);
-
             int rowCount = sheet.getLastRowNum(); // 실제 row 개수 확인
 
-            // 헤더 중복 확인
+            // 헤더 null/열중복 체크
             Row headerRow = sheet.getRow(0);
             if (headerRow == null) {
                 ValidationResult validationResult = new ValidationResult();
-                validationResult.addError(ValidationError.REQUIRED_FIELD, "Header Row");
+                validationResult.addError(ValidationError.INVALID_HEADER_FORMAT, null);
                 userList.add(new UserDataValidationWrapper(null, validationResult));
-                return ResponseEntity.status(400).body(userList);
+                return ResponseEntity.ok(userList); // 에러 메세지 반환
             }
             ValidationResult headerValidationResult = validateHeaders(headerRow);
             if (!headerValidationResult.isValid()) {
                 userList.add(new UserDataValidationWrapper(null, headerValidationResult));
-                return ResponseEntity.status(400).body(userList); // 헤더 중복 에러 반환
+                return ResponseEntity.ok(userList); // 에러 메세지 반환
             }
 
-            // Row 개수가 1001을 초과하는 경우 에러 처리
+            // 헤더 이외에 row 개수가 1001을 초과하는 경우 에러 처리
             if (rowCount > 1000) {
                 ValidationResult validationResult = new ValidationResult();
-                validationResult.addError(ValidationError.MAX_LENGTH_EXCEEDED, "Sheet Row Count");
+                validationResult.addError(ValidationError.OVER_DATA_FILE, null);
                 userList.add(new UserDataValidationWrapper(null, validationResult));
-                return ResponseEntity.ok(userList); // 400 Bad Request 반환
+                return ResponseEntity.ok(userList); // 에러 메세지 반환
+            }
+            // 헤더 이외에 데이터가 없는 경우 처리
+            if (rowCount == 0) { // 헤더만 존재하고 실제 데이터가 없는 경우
+                ValidationResult validationResult = new ValidationResult();
+                validationResult.addError(ValidationError.NO_DATA_FILE, null);
+                userList.add(new UserDataValidationWrapper(null, validationResult));
+                return ResponseEntity.ok(userList); // 에러 메세지 반환
             }
 
             // 중복 체크를 위한 기준 데이터를 저장할 Set 추가
@@ -70,14 +81,11 @@ public class FileUploadApiController {
                 user.setRow(String.valueOf(rowIndex)); //
 
                 String uniqueKey = createUniqueKey(user);
-                System.out.println("[DEBUG] Row Index: " + rowIndex + ", Unique Key: " + uniqueKey);
 
                 if (existingKeys.contains(uniqueKey)) {
-                    validationResult.addError(ValidationError.DUPLICATE_ENTRY, uniqueKey);
-                    System.out.println("[DUPLICATE DETECTED] Unique Key: " + uniqueKey);
+                    validationResult.addError(ValidationError.DUPLICATE_ENTRY, uniqueKey); //중복 row면 에러메세지 담아서 반환
                 } else {
                     existingKeys.add(uniqueKey);
-                    System.out.println("[NEW KEY ADDED] Unique Key: " + uniqueKey);
                 }
 
                 filteredList.add(new UserDataValidationWrapper(user, validationResult));
@@ -92,17 +100,34 @@ public class FileUploadApiController {
         return ResponseEntity.ok(userList);
     }
 
+    /**
+     * 데이터를 저장하는 메서드
+     * @param userDataList 클라이언트에서 전송한 데이터 리스트
+     * @return 성공/실패 메시지
+     */
+    @PostMapping("/process")
+    public ResponseEntity<String> processUserData(@RequestBody List<UserData> userDataList) {
+        try {
+            userDataService.insertBulkUserData(userDataList);
+            return ResponseEntity.ok("Data has been successfully processed and saved.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error while processing data.");
+        }
+    }
+
     private ValidationResult validateRow(Row row, UserData user) {
         ValidationResult validationResult = new ValidationResult();
         validateField(row, 0, "First Name", 40, true, validationResult, user::setFirstName);
         validateField(row, 1, "Last Name", 40, true, validationResult, user::setLastName);
         validateFieldWithPattern(row, 2, "PTN/Telephony Number", "\\d{1,20}", true, validationResult, user::setPtnOrTelephonyNumber);
         validateField(row, 3, "ID Number", 20, false, validationResult, user::setIdNumber);
-        validateField(row, 4, "Position", 40, false, validationResult, user::setPosition);
-        validateFieldWithPattern(row, 5, "Short Dialling Code", "\\d{1,20}", false, validationResult, user::setShortDiallingCode);
-        validateField(row, 6, "Operational Command Unit", 40, false, validationResult, user::setOperationalCommandUnit);
-        validateField(row, 7, "Call Sign", 25, false, validationResult, user::setCallSign);
-        validateField(row, 8, "Organisation", 40, false, validationResult, user::setOrganisation);
+        validateField(row, 4, "Email", 30, false, validationResult, user::setEmail);
+        validateField(row, 5, "Position", 40, false, validationResult, user::setPosition);
+        validateFieldWithPattern(row, 6, "Short Dialling Code", "\\d{1,20}", false, validationResult, user::setShortDiallingCode);
+        validateField(row, 7, "Operational Command Unit", 40, false, validationResult, user::setOperationalCommandUnit);
+        validateField(row, 8, "Call Sign", 25, false, validationResult, user::setCallSign);
+        validateField(row, 9, "Organisation", 40, false, validationResult, user::setOrganisation);
         return validationResult;
     }
 
@@ -150,7 +175,7 @@ public class FileUploadApiController {
         for (int cellIndex = 0; cellIndex < headerRow.getLastCellNum(); cellIndex++) {
             String headerValue = getCellValue(headerRow, cellIndex);
             if (headerSet.contains(headerValue)) { // 중복된 헤더 확인
-                validationResult.addError(ValidationError.DUPLICATE_ENTRY, "Header: " + headerValue);
+                validationResult.addError(ValidationError.INVALID_HEADER_FORMAT, null);
             } else {
                 headerSet.add(headerValue);
             }
