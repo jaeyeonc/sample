@@ -99,6 +99,10 @@
 <body>
 <h1>Ajax File Upload</h1>
 
+<button id="sample-excel-download-button" style="padding: 5px 10px; cursor: pointer; margin-bottom: 10px;">
+    Sample Download Excel
+</button>
+
 <!-- Form -->
 <form id="upload-form">
     <input type="file" id="file" name="file" accept=".xlsx, .xls">
@@ -249,7 +253,7 @@
                 },
                 error: handleUploadError
             });
-        };
+        }
 
         $(rowsPerPageSelect).on('change', function () {
             rowsPerPage = parseInt($(this).val(), 10);
@@ -498,6 +502,44 @@
             // 엑셀 파일 다운로드
             XLSX.writeFile(workbook, "upload_results.xlsx");
         }
+
+        $('#sample-excel-download-button').on('click', function () {
+            const fileName = 'BulkUploadETCUser.xlsx'; // 다운로드할 파일 이름 지정
+
+            // Ajax 요청으로 파일 다운로드 처리
+            $.ajax({
+                url: '/api/files/download',
+                method: 'GET',
+                data: { fileName: fileName }, // 파일 이름 전달
+                xhrFields: {
+                    responseType: 'blob' // 파일 데이터를 받을 수 있도록 설정
+                },
+                success: function (data, status, xhr) {
+                    // Content-Disposition에서 파일 이름 추출
+                    const disposition = xhr.getResponseHeader('Content-Disposition');
+                    const match = disposition && disposition.match(/filename="(.+)"/);
+                    const fileNameFromServer = match && match[1] ? match[1] : fileName;
+
+                    // Blob 생성
+                    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const downloadUrl = URL.createObjectURL(blob);
+
+                    // 임시 링크를 생성해 클릭 이벤트 트리거
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = fileNameFromServer; // 파일 이름 설정
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    // URL 객체 해제
+                    URL.revokeObjectURL(downloadUrl);
+                },
+                error: function () {
+                    alert('파일 다운로드 중 오류가 발생했습니다.');
+                }
+            });
+        });
 
     });
 </script>

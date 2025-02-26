@@ -59,7 +59,7 @@
         VALUES
         <foreach collection="list" item="user" separator=",">
             (
-                #{user.uploadId},
+                'ETC' || TO_CHAR(SYSDATE, YYMMDD) || (SELECT CD_VAL FROM TPV_COMM_CD WHERE CD_TYP = 8000) || LPAD(SQ_TAM_UPLOAD.NEXTVAL, 10, 0),
                 #{user.row},
                 TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
                 #{user.orgId},

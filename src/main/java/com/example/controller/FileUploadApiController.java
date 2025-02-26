@@ -8,6 +8,7 @@ import com.example.service.UserDataService;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-@RestController
+@Controller
 @RequestMapping("/api")
 public class FileUploadApiController {
 
